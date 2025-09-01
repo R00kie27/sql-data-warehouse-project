@@ -17,7 +17,8 @@ cust_firstname nvarchar(50),
 cust_lastname nvarchar(50),
 cust_marital_status nvarchar(50),
 cust_gender nvarchar(50),
-cust_create_date date
+cust_create_date date,
+dwh_create_date datetime2 default getdate()
 );
 
 If Object_ID ('bronze.crm_prd_info', 'U') is not null
@@ -29,7 +30,8 @@ prd_nm nvarchar(50),
 prd_cost int,
 prd_line nvarchar(50),
 prd_start_date datetime,
-prd_end_date datetime
+prd_end_date datetime,
+dwh_create_date datetime2 default getdate()
 );
 
 If Object_ID ('bronze.crm_sales_details', 'U') is not null
@@ -43,7 +45,8 @@ sls_ship_dt int,
 sls_due_dt int,
 sls_sales int, 
 sls_quantity int,
-sls_price int
+sls_price int,
+dwh_create_date datetime2 default getdate()
 );
 
 If Object_ID ('bronze.erp_cust_az12', 'U') is not null
