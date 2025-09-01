@@ -1,138 +1,151 @@
-CRM ============================================================
+Create or alter procedure silver.load_silver as 
+Begin 
+	PRINT '>> Truncating Table: silver.crm_cust_info';
+	Truncate Table silver.crm_cust_info;
+	PRINT '>> Inserting Data Into: silver.crm_cust_info';
+	Insert into silver.crm_cust_info (
+	cust_id,
+	cust_key,
+	cust_firstname,
+	cust_lastname,
+	cust_marital_status,
+	cust_gender,
+	cust_create_date
+	)
+	Select 
+	cust_id,
+	cust_key,
+	trim(cust_firstname) as cust_firstname,
+	trim(cust_lastname) as cust_lastname,
+	case when upper(cust_marital_status) = 'M' then 'Married'
+		 when upper(cust_marital_status) = 'S' then 'Single'
+		 else 'N/A'
+		end cust_marital_status,
+	case when upper(cust_gender) = 'F' then 'Female'
+		 when upper(cust_gender) = 'M' then 'Male'
+		 else 'N/A'
+		end cust_gender,
+	cust_create_date
+	from (
+	Select 
+	*,
+	Row_number() over (partition by cust_id order by cust_create_date desc) as flag_last
+	from bronze.crm_cust_info
+	where cust_id is not null
+	) t
+	where flag_last = 1 
 
-Insert into silver.crm_cust_info (
-cust_id,
-cust_key,
-cust_firstname,
-cust_lastname,
-cust_marital_status,
-cust_gender,
-cust_create_date
-)
-Select 
-cust_id,
-cust_key,
-trim(cust_firstname) as cust_firstname,
-trim(cust_lastname) as cust_lastname,
-case when upper(cust_marital_status) = 'M' then 'Married'
-	 when upper(cust_marital_status) = 'S' then 'Single'
-	 else 'N/A'
-	end cust_marital_status,
-case when upper(cust_gender) = 'F' then 'Female'
-	 when upper(cust_gender) = 'M' then 'Male'
-	 else 'N/A'
-	end cust_gender,
-cust_create_date
-from (
-Select 
-*,
-Row_number() over (partition by cust_id order by cust_create_date desc) as flag_last
-from bronze.crm_cust_info
-where cust_id is not null
-) t
-where flag_last = 1 
+	--
+	PRINT '>> Truncating Table: silver.crm_prd_info';
+	Truncate Table silver.crm_prd_info;
+	PRINT '>> Inserting Data Into: silver.crm_prd_info';
+	insert into silver.crm_prd_info (
+	prd_id,
+	cast_id,
+	prd_key,
+	prd_nm,
+	prd_cost,
+	prd_line,
+	prd_start_date,
+	prd_end_date
+	)
+	Select 
+	prd_id,
+	REPLACE(SUBSTRING(prd_key, 1, 5), '-', '_') as cast_id,
+	SUBSTRING(prd_key, 7, len(prd_key)) as prd_key, 
+	prd_nm,
+	isnull(prd_cost, 0) as prd_cost,
+	case when upper(trim(prd_line)) = 'M' then 'Mountain'
+		 when upper(trim(prd_line)) = 'R' then 'Road'
+		 when upper(trim(prd_line)) = 'S' then 'Other Sales'
+		 when upper(trim(prd_line)) = 'T' then 'Touring'
+		else 'N/A'
+	end as prd_line,
+	cast (prd_start_date as date) as prd_start_date,
+	cast(lead(prd_start_date) over (partition by prd_key order by prd_start_date) -1 as date) as prd_end_date
+	from bronze.crm_prd_info
 
---
+	--
+	PRINT '>> Truncating Table: silver.crm_sales_details';
+	Truncate Table silver.crm_sales_details;
+	PRINT '>> Inserting Data Into: silver.crm_sales_details';
+	insert into silver.crm_sales_details (
+	sls_ord_num,
+	sls_prd_key,
+	sls_cust_id,
+	sls_order_dt, 
+	sls_ship_dt,
+	sls_due_dt,
+	sls_sales, 
+	sls_quantity,
+	sls_price
+	)
+	select 
+	sls_ord_num,
+	sls_prd_key,
+	sls_cust_id,
+	Case when sls_order_dt = 0 or len(sls_order_dt) != 8 then Null
+		 else cast(cast(sls_order_dt as varchar) as date) 
+		end as sls_order_dt,
+	Case when sls_ship_dt = 0 or len(sls_ship_dt) != 8 then Null
+		 else cast(cast(sls_ship_dt as varchar) as date) 
+		end as sls_ship_dt,
+	Case when sls_due_dt = 0 or len(sls_due_dt) != 8 then Null
+		 else cast(cast(sls_due_dt as varchar) as date) 
+		end as sls_due_dt,
+	Case when sls_sales <= 0 or sls_sales is null or sls_sales != sls_quantity * ABS(sls_price)
+					then sls_quantity * ABS(sls_price)
+					else sls_sales
+			end as sls_sales,
+	sls_quantity,
+	Case when sls_price is null or sls_price <= 0 
+					then sls_sales / nullif(sls_quantity, 0)
+					else sls_price
+			end as sls_price
+	from bronze.crm_sales_details
 
-insert into silver.crm_prd_info (
-prd_id,
-cast_id,
-prd_key,
-prd_nm,
-prd_cost,
-prd_line,
-prd_start_date,
-prd_end_date
-)
-Select 
-prd_id,
-REPLACE(SUBSTRING(prd_key, 1, 5), '-', '_') as cast_id,
-SUBSTRING(prd_key, 7, len(prd_key)) as prd_key, 
-prd_nm,
-isnull(prd_cost, 0) as prd_cost,
-case when upper(trim(prd_line)) = 'M' then 'Mountain'
-	 when upper(trim(prd_line)) = 'R' then 'Road'
-	 when upper(trim(prd_line)) = 'S' then 'Other Sales'
-	 when upper(trim(prd_line)) = 'T' then 'Touring'
-	else 'N/A'
-end as prd_line,
-cast (prd_start_date as date) as prd_start_date,
-cast(lead(prd_start_date) over (partition by prd_key order by prd_start_date) -1 as date) as prd_end_date
-from bronze.crm_prd_info
+	--
+	PRINT '>> Truncating Table: silver.erp_cust_az12';
+	Truncate Table silver.erp_cust_az12;
+	PRINT '>> Inserting Data Into: silver.erp_cust_az12';
+	Insert Into silver.erp_cust_az12 (cid, bdate, gen)
+	select 
+	case when cid like 'NAS%' then SUBSTRING(cid, 4, len(cid))
+		 else cid
+	end cid,
+	Case when bdate > getdate() then null
+			else bdate 
+	end as bdate,
+	Case when upper(trim(gen)) in ('F', 'FEMALE') then 'Female'
+		 when upper(trim(gen)) in ('M', 'MALE') then 'Male' 
+		 else 'N/A'
+	end as gen
+	from bronze.erp_cust_az12 
 
---
-insert into silver.crm_sales_details (
-sls_ord_num,
-sls_prd_key,
-sls_cust_id,
-sls_order_dt, 
-sls_ship_dt,
-sls_due_dt,
-sls_sales, 
-sls_quantity,
-sls_price
-)
-select 
-sls_ord_num,
-sls_prd_key,
-sls_cust_id,
-Case when sls_order_dt = 0 or len(sls_order_dt) != 8 then Null
-	 else cast(cast(sls_order_dt as varchar) as date) 
-	end as sls_order_dt,
-Case when sls_ship_dt = 0 or len(sls_ship_dt) != 8 then Null
-	 else cast(cast(sls_ship_dt as varchar) as date) 
-	end as sls_ship_dt,
-Case when sls_due_dt = 0 or len(sls_due_dt) != 8 then Null
-	 else cast(cast(sls_due_dt as varchar) as date) 
-	end as sls_due_dt,
-Case when sls_sales <= 0 or sls_sales is null or sls_sales != sls_quantity * ABS(sls_price)
-				then sls_quantity * ABS(sls_price)
-				else sls_sales
-		end as sls_sales,
-sls_quantity,
-Case when sls_price is null or sls_price <= 0 
-				then sls_sales / nullif(sls_quantity, 0)
-				else sls_price
-		end as sls_price
-from bronze.crm_sales_details
+	--
+	PRINT '>> Truncating Table: silver.erp_loc_a101';
+	Truncate Table silver.erp_loc_a101;
+	PRINT '>> Inserting Data Into: silver.erp_loc_a101';
+	Insert into silver.erp_loc_a101(cid, cntry)
+	SELECT 
+	replace(cid, '-','') cid,
+	case when trim(cntry) = 'DE' then 'Germany'
+		 when trim(cntry) in ('US', 'USA') then 'United States'
+		 when trim(cntry) is null or trim(cntry) = '' then 'N/A'
+		 else trim(cntry)
+	end as cntry
+	from bronze.erp_loc_a101
 
-
-
-ERP ============================================================
-
-Insert Into silver.erp_cust_az12 (cid, bdate, gen)
-select 
-case when cid like 'NAS%' then SUBSTRING(cid, 4, len(cid))
-	 else cid
-end cid,
-Case when bdate > getdate() then null
-		else bdate 
-end as bdate,
-Case when upper(trim(gen)) in ('F', 'FEMALE') then 'Female'
-	 when upper(trim(gen)) in ('M', 'MALE') then 'Male' 
-	 else 'N/A'
-end as gen
-from bronze.erp_cust_az12 
-
---
-
-Insert into silver.erp_loc_a101(cid, cntry)
-SELECT 
-replace(cid, '-','') cid,
-case when trim(cntry) = 'DE' then 'Germany'
-	 when trim(cntry) in ('US', 'USA') then 'United States'
-	 when trim(cntry) is null or trim(cntry) = '' then 'N/A'
-	 else trim(cntry)
-end as cntry
-from bronze.erp_loc_a101
-
---
-
-insert into [silver].[erp_px_cat_g1v2]
-(id, cat, subcat, maintenance)
-SELECT
-id,
-cat,
-subcat,
-maintenance
-from [bronze].[erp_px_cat_g1v2]
+	--
+	PRINT '>> Truncating Table: silver.erp_px_cat_g1v2';
+	Truncate Table silver.erp_px_cat_g1v2;
+	PRINT '>> Inserting Data Into: silver.erp_px_cat_g1v2';
+	insert into silver.erp_px_cat_g1v2
+	(id, cat, subcat, maintenance)
+	SELECT
+	id,
+	cat,
+	subcat,
+	maintenance
+	from bronze.erp_px_cat_g1v2
+End 
