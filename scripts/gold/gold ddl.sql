@@ -37,7 +37,7 @@ Select
 	on		ca.cid = ci.cust_key
 	left join silver.erp_loc_a101 la
 	on		la.cid = ci.cust_key
-
+Go
 -- Create Dimension: gold.dim_product
 >> ==========================================
 If Object_ID ('gold.dim_product', 'V') is not null 
@@ -60,7 +60,7 @@ from [silver].[crm_prd_info] pn
 left join silver.erp_px_cat_g1v2 pc
 	on pc.id = pn.cast_id
 where prd_end_date is null --Filter out all historical data
-
+Go
 -- Create Dimension: gold.fact_sales
 >> ==========================================
 If Object_ID ('gold.fact_sales', 'V') is not null 
@@ -82,5 +82,5 @@ left join gold.dim_product pr
   on sd.sls_prd_key = pr.product_number 
 left join gold.dim_customers cu
   on sd.sls_cust_id = cu.customer_id
-
+Go
 
