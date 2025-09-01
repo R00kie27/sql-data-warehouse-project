@@ -40,7 +40,9 @@ Select
 
 -- Create Dimension: gold.dim_product
 >> ==========================================
-  
+If Object_ID ('gold.dim_product', 'V') is not null 
+  Drop View gold.dim_product;
+Go   
 Create View gold.dim_product as 
 select 
 	Row_number() over (order by pn.prd_start_date, pn.prd_key) as product_key,
@@ -61,7 +63,9 @@ where prd_end_date is null --Filter out all historical data
 
 -- Create Dimension: gold.fact_sales
 >> ==========================================
-
+If Object_ID ('gold.fact_sales', 'V') is not null 
+  Drop View gold.fact_sales;
+Go   
 Create View gold.fact_sales as 
 Select 
   sd.sls_ord_num as order_number,
